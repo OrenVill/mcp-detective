@@ -5,7 +5,7 @@
  */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import * as z from 'zod';
-import { serveMcp } from './serve-mcp.mjs';
+import { serveMultiSessionMcp } from './serve-mcp.mjs';
 
 const PORT = Number(process.argv[2] ?? process.env.PORT ?? 3006);
 
@@ -18,8 +18,9 @@ function buildServer() {
       description: 'Ask the user to confirm via MCP elicitation before proceeding.',
       inputSchema: { step: z.string().describe('Label for the confirmation step') },
     },
-    async ({ step }, extra) => {
-      const result = await extra.elicitInput({
+    async ({ step }) => {
+      const result = await server.server.elicitInput({
+        mode: 'form',
         message: `Confirm step: ${step}?`,
         requestedSchema: {
           type: 'object',
@@ -38,4 +39,6 @@ function buildServer() {
   return server;
 }
 
-serveMcp(buildServer, { port: PORT, label: 'reverse-mcp-server' });
+// Multi-session stateful: elicitation needs caps from initialize on the same session;
+// a single global transport rejects the second initialize (HTTP 400).
+serveMultiSessionMcp(buildServer, { port: PORT, label: 'reverse-mcp-server' });
