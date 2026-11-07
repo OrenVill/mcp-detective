@@ -5,7 +5,7 @@
  */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import * as z from 'zod';
-import { serveStatefulMcp } from './serve-mcp.mjs';
+import { serveMultiSessionMcp } from './serve-mcp.mjs';
 
 const PORT = Number(process.argv[2] ?? process.env.PORT ?? 3006);
 
@@ -39,5 +39,6 @@ function buildServer() {
   return server;
 }
 
-// Stateful: elicitation needs client capabilities from initialize on later tools/call.
-serveStatefulMcp(buildServer, { port: PORT, label: 'reverse-mcp-server' });
+// Multi-session stateful: elicitation needs caps from initialize on the same session;
+// a single global transport rejects the second initialize (HTTP 400).
+serveMultiSessionMcp(buildServer, { port: PORT, label: 'reverse-mcp-server' });
