@@ -6,6 +6,14 @@
 
 * **mcp:** After a stateful Streamable HTTP MCP server restarts or forgets a session, Detective transparently re-initializes the session and retries the call once. Failed reconnects surface a **Reconnect** action instead of leaving the server marked connected.
 
+## [2.4.0](https://github.com/OrenVill/mcp-detective/compare/v2.3.0...v2.4.0) (2026-11-07)
+
+
+### Features
+
+* **mcp:** real MCP client — reverse requests and inbound traffic ([#110](https://github.com/OrenVill/mcp-detective/issues/110)) ([a4ca261](https://github.com/OrenVill/mcp-detective/commit/a4ca261cd08c2dc3eaf87a4c0dd9a556525b0973))
+* **test-lab:** persisted scenarios and scenario run CLI ([#108](https://github.com/OrenVill/mcp-detective/issues/108)) ([3c063e9](https://github.com/OrenVill/mcp-detective/commit/3c063e93064152c339cdef0ddc20c66028438f67))
+
 ## [2.3.0](https://github.com/OrenVill/mcp-detective/compare/v2.2.0...v2.3.0) (2026-11-06)
 
 
