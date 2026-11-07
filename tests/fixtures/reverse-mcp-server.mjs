@@ -18,8 +18,9 @@ function buildServer() {
       description: 'Ask the user to confirm via MCP elicitation before proceeding.',
       inputSchema: { step: z.string().describe('Label for the confirmation step') },
     },
-    async ({ step }, extra) => {
-      const result = await extra.elicitInput({
+    async ({ step }) => {
+      const result = await server.server.elicitInput({
+        mode: 'form',
         message: `Confirm step: ${step}?`,
         requestedSchema: {
           type: 'object',
