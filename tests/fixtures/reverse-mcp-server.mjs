@@ -5,7 +5,7 @@
  */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import * as z from 'zod';
-import { serveMcp } from './serve-mcp.mjs';
+import { serveStatefulMcp } from './serve-mcp.mjs';
 
 const PORT = Number(process.argv[2] ?? process.env.PORT ?? 3006);
 
@@ -39,4 +39,5 @@ function buildServer() {
   return server;
 }
 
-serveMcp(buildServer, { port: PORT, label: 'reverse-mcp-server' });
+// Stateful: elicitation needs client capabilities from initialize on later tools/call.
+serveStatefulMcp(buildServer, { port: PORT, label: 'reverse-mcp-server' });
