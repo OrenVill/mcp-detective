@@ -178,3 +178,104 @@ export function serveStatefulMcp(buildServer, { port, host = '127.0.0.1', label 
 
   return httpServer;
 }
+
+function bodyIsInitialize(body) {
+  if (!body || typeof body !== 'object') return false;
+  if (Array.isArray(body)) return body.some((m) => m && typeof m === 'object' && m.method === 'initialize');
+  return body.method === 'initialize';
+}
+
+/**
+ * Stateful MCP with one transport per session id (supports reconnect / multiple clients).
+ * POST /__restart closes every session (same as {@link serveStatefulMcp}).
+ */
+export function serveMultiSessionMcp(buildServer, { port, host = '127.0.0.1', label }) {
+  /** @type {Map<string, { mcpServer: import('@modelcontextprotocol/sdk/server/mcp.js').McpServer; transport: import('@modelcontextprotocol/sdk/server/streamableHttp.js').StreamableHTTPServerTransport }>} */
+  const sessions = new Map();
+
+  async function resetAll() {
+    for (const { mcpServer, transport } of sessions.values()) {
+      try {
+        await transport.close();
+      } catch {
+        /* ignore */
+      }
+      try {
+        await mcpServer.close();
+      } catch {
+        /* ignore */
+      }
+    }
+    sessions.clear();
+  }
+
+  async function openSession() {
+    const mcpServer = buildServer();
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID(),
+      enableJsonResponse: true,
+      onsessioninitialized: (sessionId) => {
+        sessions.set(sessionId, { mcpServer, transport });
+      },
+    });
+    await mcpServer.connect(transport);
+    return { mcpServer, transport };
+  }
+
+  const handler = async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', req.headers.origin ?? '*');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Expose-Headers', 'mcp-session-id, mcp-protocol-version');
+
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
+    const path = (req.url ?? '/').split('?')[0];
+
+    if (path === '/__restart' && req.method === 'POST') {
+      await resetAll();
+      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('ok');
+      return;
+    }
+
+    if (path !== '/mcp') {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Not Found');
+      return;
+    }
+
+    const body = req.method === 'POST' ? await readJsonBody(req) : undefined;
+    const sessionHeader = req.headers['mcp-session-id'];
+    const sessionId = Array.isArray(sessionHeader) ? sessionHeader[0] : sessionHeader;
+
+    let entry = sessionId ? sessions.get(sessionId) : undefined;
+    if (!entry && bodyIsInitialize(body)) {
+      entry = await openSession();
+    }
+    if (!entry) {
+      res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Unknown or missing mcp-session-id');
+      return;
+    }
+
+    try {
+      await entry.transport.handleRequest(req, res, body);
+    } catch (err) {
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+      }
+      res.end(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const httpServer = createServer(handler);
+  httpServer.listen(port, host, () => {
+    console.log(`${label} (multi-session) listening on http://${host}:${port}/mcp`);
+  });
+  return httpServer;
+}
