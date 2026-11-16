@@ -78,6 +78,11 @@ export async function selectServer(page: Page, name: string): Promise<void> {
   await page.locator('aside li').filter({ hasText: name }).click();
 }
 
+export async function openAgentChat(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Automate menu' }).click();
+  await page.getByTestId('open-agent-chat').click();
+}
+
 /** Fill a tool-form field by its visible parameter label. */
 export function paramInput(page: Page, label: string) {
   return page

@@ -1,5 +1,5 @@
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
-import { setupVault, addFixtureServer, VAULT_PASS } from './helpers';
+import { setupVault, addFixtureServer, openAgentChat, VAULT_PASS } from './helpers';
 
 // §3.26 — Agent Chat
 //
@@ -19,7 +19,7 @@ import { setupVault, addFixtureServer, VAULT_PASS } from './helpers';
 const LLM_BASE = 'http://127.0.0.1:3003/v1';
 
 async function openChat(page: Page): Promise<void> {
-  await page.getByTestId('open-agent-chat').click();
+  await openAgentChat(page);
   await expect(page.getByTestId('agent-chat-panel')).toBeVisible();
 }
 

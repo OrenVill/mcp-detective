@@ -8,6 +8,7 @@ import {
   selectServer,
   setupVault,
   waitForConnected,
+  openAgentChat,
   type LaunchedApp,
 } from './helpers';
 
@@ -60,7 +61,7 @@ test.describe.serial('Electron — Agent Chat', () => {
 
   test('the chat overlay opens, prompts for a model, and closes', async () => {
     const page = launched.page;
-    await page.getByTestId('open-agent-chat').click();
+    await openAgentChat(page);
     await expect(page.getByTestId('agent-chat-panel')).toBeVisible();
 
     // With no LLM server configured the picker opens its own form unprompted,
@@ -80,7 +81,7 @@ test.describe.serial('Electron — Agent Chat', () => {
 
   test('Base URL keeps slashes while typing character by character', async () => {
     const page = launched.page;
-    await page.getByTestId('open-agent-chat').click();
+    await openAgentChat(page);
     const form = page.getByTestId('llm-config-form');
     await expect(form).toBeVisible();
     const baseUrl = form.getByRole('textbox', { name: 'Base URL' });
@@ -95,7 +96,7 @@ test.describe.serial('Electron — Agent Chat', () => {
 
   test('adding an LLM server discovers its models over IPC', async () => {
     const page = launched.page;
-    await page.getByTestId('open-agent-chat').click();
+    await openAgentChat(page);
     await expect(page.getByTestId('agent-chat-panel')).toBeVisible();
 
     const form = page.getByTestId('llm-config-form');

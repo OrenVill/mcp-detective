@@ -267,6 +267,7 @@ export default defineConfig({
     environment: 'node',
     include: [
       'src/**/*.test.ts',
+      'src/**/*.test.tsx',
       '*.test.js',
       'electron/**/*.test.js',
       'mcp/**/*.test.js',
