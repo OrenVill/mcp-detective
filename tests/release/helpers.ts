@@ -98,6 +98,12 @@ function devToolsMenuTestIdForTab(tab: string): string {
   return 'open-dev-tools-trust';
 }
 
+/** Agent Chat lives under the Automate toolbar menu since the shell UX refresh. */
+export async function openAgentChat(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Automate menu' }).click();
+  await page.getByTestId('open-agent-chat').click();
+}
+
 export async function openDevTools(page: Page, tab?: string): Promise<void> {
   await page.getByTestId('header-tools-menu').click();
   const menuId = tab ? devToolsMenuTestIdForTab(tab) : 'open-dev-tools-traffic';

@@ -16,6 +16,7 @@ import {
   createDefaultAgentChatSlots,
   type AgentChatSlotPersisted,
 } from '../lib/agent/chatSessions';
+import { applyAgentChatSlotPatch } from '../lib/agent/chatSlotPersist';
 import { getAppData, patchAppData } from '../lib/appData';
 import { useProtocolTraces } from './useProtocolTraces';
 import { AgentModelPicker } from './AgentModelPicker';
@@ -40,6 +41,9 @@ const COLUMN = 'w-full max-w-3xl mx-auto px-6';
 
 /** Bound persisted history so app data stays small; oldest turns drop first. */
 const MAX_PERSISTED_AGENT_MESSAGES = 200;
+
+/** Coalesce rapid slot edits before hitting the host file store (IPC on desktop). */
+const AGENT_CHAT_SLOT_DISK_FLUSH_MS = 300;
 
 /** Milliseconds, but readable once a call runs into seconds. */
 function formatDuration(ms: number): string {
@@ -170,6 +174,10 @@ function AgentChatSessionInner({
   const focusedOnceRef = useRef(false);
 
   const inputDraftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const persistSlotRef = useRef(persistSlot);
+  useEffect(() => {
+    persistSlotRef.current = persistSlot;
+  });
 
   const traces = useProtocolTraces();
 
@@ -188,12 +196,9 @@ function AgentChatSessionInner({
 
   const config = llmConfigs.find((c) => c.id === effectiveConfigId) ?? null;
 
-  const onMessagesChange = useCallback(
-    (messages: AgentMessage[]) => {
-      persistSlot({ messages });
-    },
-    [persistSlot],
-  );
+  const onMessagesChange = useCallback((messages: AgentMessage[]) => {
+    persistSlotRef.current({ messages });
+  }, []);
 
   const run = useAgentRun(
     servers,
@@ -220,18 +225,18 @@ function AgentChatSessionInner({
   const approvalOpen = run.pending !== null;
 
   useEffect(() => {
-    persistSlot({ activeConfigId: effectiveConfigId, selectedServerIds });
-  }, [effectiveConfigId, selectedServerIds, persistSlot]);
+    persistSlotRef.current({ activeConfigId: effectiveConfigId, selectedServerIds });
+  }, [effectiveConfigId, selectedServerIds]);
 
   useEffect(() => {
     if (inputDraftTimerRef.current) clearTimeout(inputDraftTimerRef.current);
     inputDraftTimerRef.current = setTimeout(() => {
-      persistSlot({ inputDraft: input });
+      persistSlotRef.current({ inputDraft: input });
     }, 400);
     return () => {
       if (inputDraftTimerRef.current) clearTimeout(inputDraftTimerRef.current);
     };
-  }, [input, persistSlot]);
+  }, [input]);
 
   /*
    * Follow the conversation as it grows, but only when the reader is already at
@@ -386,9 +391,9 @@ function AgentChatSessionInner({
     setInput('');
     clearQueue();
     setNotice(null);
-    persistSlot({ messages: [], inputDraft: '' });
+    persistSlotRef.current({ messages: [], inputDraft: '' });
     inputRef.current?.focus();
-  }, [clearQueue, persistSlot, run]);
+  }, [clearQueue, run]);
 
   const runTraces = traces.filter((trace) => trace.method === 'tools/call').slice(0, 40);
   const traceStats = {
@@ -938,22 +943,59 @@ export function AgentChatPanel({
   );
   const [activeSlotIndex, setActiveSlotIndex] = useState(0);
 
-  const persistSlot = useCallback((index: number, patch: Partial<AgentChatSlotPersisted>) => {
-    setSlots((prev) => {
-      const baseList = [...prev];
-      while (baseList.length < AGENT_CHAT_SLOT_COUNT) {
-        baseList.push(createDefaultAgentChatSlots()[baseList.length]);
-      }
-      const prevSlot = baseList[index] ?? createDefaultAgentChatSlots()[index];
-      let next: AgentChatSlotPersisted = { ...prevSlot, ...patch, updatedAt: Date.now() };
-      if (next.messages.length > MAX_PERSISTED_AGENT_MESSAGES) {
-        next = { ...next, messages: next.messages.slice(-MAX_PERSISTED_AGENT_MESSAGES) };
-      }
-      baseList[index] = next;
-      patchAppData({ agentChatSlots: baseList });
-      return baseList;
-    });
+  const slotsPendingDiskRef = useRef<AgentChatSlotPersisted[] | null>(null);
+  const diskFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushSlotsToDisk = useCallback(() => {
+    const list = slotsPendingDiskRef.current;
+    if (!list) return;
+    slotsPendingDiskRef.current = null;
+    patchAppData({ agentChatSlots: list });
   }, []);
+
+  const scheduleSlotsDiskFlush = useCallback(
+    (list: AgentChatSlotPersisted[]) => {
+      slotsPendingDiskRef.current = list;
+      if (diskFlushTimerRef.current) clearTimeout(diskFlushTimerRef.current);
+      diskFlushTimerRef.current = setTimeout(() => {
+        diskFlushTimerRef.current = null;
+        flushSlotsToDisk();
+      }, AGENT_CHAT_SLOT_DISK_FLUSH_MS);
+    },
+    [flushSlotsToDisk],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (diskFlushTimerRef.current) clearTimeout(diskFlushTimerRef.current);
+      flushSlotsToDisk();
+    };
+  }, [flushSlotsToDisk]);
+
+  const persistSlot = useCallback(
+    (index: number, patch: Partial<AgentChatSlotPersisted>) => {
+      setSlots((prev) => {
+        const baseList = [...prev];
+        while (baseList.length < AGENT_CHAT_SLOT_COUNT) {
+          baseList.push(createDefaultAgentChatSlots()[baseList.length]);
+        }
+        const prevSlot = baseList[index] ?? createDefaultAgentChatSlots()[index];
+        const next = applyAgentChatSlotPatch(prevSlot, patch, MAX_PERSISTED_AGENT_MESSAGES);
+        if (!next) return prev;
+        baseList[index] = next;
+        scheduleSlotsDiskFlush(baseList);
+        return baseList;
+      });
+    },
+    [scheduleSlotsDiskFlush],
+  );
+
+  const persistActiveSlot = useCallback(
+    (patch: Partial<AgentChatSlotPersisted>) => {
+      persistSlot(activeSlotIndex, patch);
+    },
+    [activeSlotIndex, persistSlot],
+  );
 
   const activeSlot = slots[activeSlotIndex] ?? createDefaultAgentChatSlots()[activeSlotIndex];
 
@@ -994,7 +1036,7 @@ export function AgentChatPanel({
       key={activeSlotIndex}
       slotSwitcher={slotSwitcher}
       slot={activeSlot}
-      persistSlot={(patch) => persistSlot(activeSlotIndex, patch)}
+      persistSlot={persistActiveSlot}
       servers={servers}
       llmConfigs={llmConfigs}
       onSaveLlmConfigs={onSaveLlmConfigs}
