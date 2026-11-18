@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { setupVault, waitForConnected, selectServer, FIXTURE_URL } from './helpers';
+import { setupVault, waitForConnected, selectServer, openAgentChat, FIXTURE_URL } from './helpers';
 
 const STDIO_FIXTURE = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -93,7 +93,7 @@ test.describe.serial('§3.27 — Stored secrets never reach the edit form', () =
     await setupVault(page);
 
     // With no model server configured, the chat overlay opens straight onto its form.
-    await page.getByTestId('open-agent-chat').click();
+    await openAgentChat(page);
     const form = page.getByTestId('llm-config-form');
     await expect(form).toBeVisible();
     await form.getByPlaceholder('Local Ollama').fill('Keyed LLM');
