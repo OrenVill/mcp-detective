@@ -6,6 +6,13 @@
 
 * **mcp:** After a stateful Streamable HTTP MCP server restarts or forgets a session, Detective transparently re-initializes the session and retries the call once. Failed reconnects surface a **Reconnect** action instead of leaving the server marked connected.
 
+## [2.4.1](https://github.com/OrenVill/mcp-detective/compare/v2.4.0...v2.4.1) (2026-11-18)
+
+
+### Bug Fixes
+
+* **agent-chat:** stop persistSlot render loop that OOMs Electron ([#111](https://github.com/OrenVill/mcp-detective/issues/111)) ([85ef6f7](https://github.com/OrenVill/mcp-detective/commit/85ef6f70215497e26fca91728aaf8da1dfc4598d))
+
 ## [2.4.0](https://github.com/OrenVill/mcp-detective/compare/v2.3.0...v2.4.0) (2026-11-07)
 
 
